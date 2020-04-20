@@ -322,6 +322,80 @@ void Aftr::GLViewNewModule::loadMap()
    //netLst->push_back( wo );
    
    createNewModuleWayPoints();
+    
+    float top = 34;
+    float bottom = 33;
+    
+    float left = -119;
+    float right = -118;
+     
+    float vert = top - bottom;
+    float horz = right - left;
+
+    VectorD offset((top + bottom) / 2, (left + right) / 2, 0);
+    
+    mCooking = PxCreateCooking(PX_PHYSICS_VERSION, *foundation, physx::PxCookingParams(physx::PxTolerancesScale()));
+    if (!mCooking) {
+        std::cout << "Cooking error" << std::endl;
+        std::cin.get();
+    }
+    
+    VectorD scale = VectorD(1.0f, 1.0f, 1.0f);
+    VectorD upperLeft(top, left, 0);
+    VectorD lowerRight(bottom, right, 0);
+
+    WO* grid = WOGridECEFElevation::New(upperLeft, lowerRight, 0, offset, scale, "something.tif");
+
+    grid->setLabel("grid");
+    worldLst->push_back(grid);
+    
+    size_t vertexListSize = this->getModel()->getModelDataShared()->getCompositeVertexList().size();
+    size_t indexListSize = this->getModel()->getModelDataShared()->getCompositeIndexList().size();
+
+    this->vertexListCopy = new float[vertexListSize*3];
+    this->indicesCopy = new unsigned int[indexListSize];
+
+    for (size_t i = 0; i < vertexListSize; i++) {
+        this->vertexListCopy[i*3+0] = this->getModel()->getModelDataShared()->getCompositeVertexList().at(i).x;
+        this->vertexListCopy[i * 3 + 1] = this->getModel()->getModelDataShared()->getCompositeVertexList().at(i).y;
+        this->vertexListCopy[i * 3 + 2] = this->getModel()->getModelDataShared()->getCompositeVertexList().at(i).z;
+    }
+    
+    for (size_t i = 0; i < indexListSize; i++) {
+        this->indicesCopy[i] = this->getModel()->getModelDataShared()->getCompositeIndexList().at(i);
+    }
+    
+    PxTriangleMeshDesc meshDesc;
+    meshDesc.points.count =  vertexListSize;
+    meshDesc.points.stride = sizeof(float) * 3;
+    meshDesc.points.data = this->vertexListCopy;
+
+    meshDesc.triangles.count = indexListSize / 3;
+    meshDesc.triangles.stride = 3 * sizeof(unsigned int);
+    meshDesc.triangles.data = this->indicesCopy;
+
+    PxDefaultMemoryOutputStream writeBuffer;
+    PxTriangleMeshCookingResult::Enum result;
+
+    if (!c->cookTriangleMesh(meshDesc, writeBuffer, &result);) {
+        std::cout << "Failed to create Triangular mesh" << std::endl;
+        std::cin.get();
+    }
+
+    PxDefaultMemoryInputData readBuffer(writeBuffer.getData(), writeBuffer.getSize());
+    physx::PxTriangleMesh* mesh = this->p->createTriangleMesh(readBuffer);
+
+    PxMaterial* gMaterial = p->createMaterial(0.5f, 0.5f, 0.6f);
+    PxShape* shape = p->createShape(PxTriangleMeshGeometry(mesh), *gMaterial, true);
+    PxTransform t({ 0,0,0 });
+
+    a = p->createRigidStatic(t);
+    bool b = a->attachShape(*shape);
+    
+    a->userData = this;
+    this->s->addActor(*a);
+    
+    grid->getModel()->isUsingBlending(false);
 }
 
 
